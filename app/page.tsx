@@ -115,35 +115,37 @@ export default function App() {
   // --- Real-time Supabase sync ---
   useEffect(() => {
     const showToast = (msg:string) => { setToast(msg); setTimeout(()=>setToast(null), 2500); };
-    const fetchProducts = async () => {
-      if (!supabase) return;
-      const { data, error } = await supabase.from('products').select('*').order('id');
-      setIsLoadingProducts(false);
-      if (!error && data && data.length > 0) {
-        const mapped: Product[] = data.map((p:any) => ({
-          id: p.id,
-          name: p.name,
-          nameEn: p.name,
-          price: Number(p.price),
-          category: p.category as Category,
-          status: p.status as ProductStatus,
-          daysLeft: 5,
-          ordered: Math.floor(Math.random()*120)+20,
-          stock: Number(p.stock)||0,
-          image: p.image,
-          gallery: [p.image],
-          material: 'วัสดุธรรมชาติ',
-          colors: [{name:'Default', hex:'#1E3A2E'}],
-          preorderEndsAt: Date.now()+5*86400000,
-        }));
-        setProducts(mapped);
-        // if selected product not in new list, update
-        setSelectedProduct(prev => {
-          const found = mapped.find(m => m.id === prev.id);
-          return found || mapped[0];
-        });
-      }
-    };
+const fetchProducts = async () => {
+  if (!supabase) return;
+  const { data, error } = await supabase.from('products').select('*').order('id');
+  setIsLoadingProducts(false);
+  if (!error && data && data.length > 0) {
+    const mapped: Product[] = data.map((p:any) => ({
+      id: p.id,
+      name: p.name,
+      nameEn: p.name_en || p.name,
+      price: Number(p.price),
+      category: (p.category || 'เสื้อ') as Category,
+      status: p.status as ProductStatus,
+      daysLeft: 5,
+      ordered: Number(p.ordered_count) || Math.floor(Math.random()*120)+20,
+      stock: Number(p.stock)||0,
+      image: p.image || p.image_url || "",
+      gallery: p.gallery?.length? p.gallery : [p.image || p.image_url],
+      material: p.material || 'วัสดุธรรมชาติ',
+      colors: [{name:'Default', hex:'#1E3A2E'}],
+      // ใช้ค่าจริงจาก DB ถ้าไม่มีให้ปิดนับเลย
+      preorderEndsAt: p.preorder_ends_at
+       ? new Date(p.preorder_ends_at).getTime()
+        : null,
+    }));
+    setProducts(mapped);
+    setSelectedProduct(prev => {
+      const found = mapped.find(m => m.id === prev.id);
+      return found || mapped[0];
+    });
+  }
+};
     fetchProducts();
     if (!supabase) return;
     const channel = supabase.channel('products-realtime').on('postgres_changes',{event:'*',schema:'public',table:'products'},()=>{ fetchProducts(); }).subscribe();
